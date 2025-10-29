@@ -7,8 +7,8 @@ export default function Work() {
         <Sidebar />
         <div className="animate-in">
           <section>
-            <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-neutral-900 mb-4">Selected work</h1>
-            <p className="text-base sm:text-lg leading-relaxed">
+            <h1 className="text-lg font-medium tracking-tight text-neutral-900 mb-4">Selected work</h1>
+            <p className="text-base leading-relaxed">
               Work content goes here.
             </p>
           </section>

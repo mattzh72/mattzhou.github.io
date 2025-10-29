@@ -26,19 +26,11 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
   // photo cycling state
   const [landscapeIndex, setLandscapeIndex] = useState([0, 1])
   const [portraitIndex, setPortraitIndex] = useState(0)
-
-  // cycle photos every 3 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLandscapeIndex(prev => [
-        (prev[0] + 1) % landscapePhotos.length,
-        (prev[1] + 1) % landscapePhotos.length
-      ])
-      setPortraitIndex(prev => (prev + 1) % portraitPhotos.length)
-    }, 3000)
-
-    return () => clearInterval(interval)
-  }, [landscapePhotos.length, portraitPhotos.length])
+  const landscapeLenRef = useRef(landscapePhotos.length)
+  const portraitLenRef = useRef(portraitPhotos.length)
+  useEffect(() => { landscapeLenRef.current = landscapePhotos.length }, [landscapePhotos.length])
+  useEffect(() => { portraitLenRef.current = portraitPhotos.length }, [portraitPhotos.length])
+  // click-based cycling replaces timer; see click handler below
 
   // swap textures when photos change (no flashing)
   useEffect(() => {
@@ -68,6 +60,10 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
     const container = containerRef.current
     let wallWidth = 2400
     let wallHeight = 1600
+    const raycaster = new THREE.Raycaster()
+    const pointer = new THREE.Vector2()
+    const wallMeshRef: { current: THREE.Mesh | null } = { current: null }
+    const zoomStateRef = { current: { active: false, frameIndex: -1 } }
 
     // scene setup
     const scene = new THREE.Scene()
@@ -114,6 +110,7 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
       const wallMat = new THREE.MeshBasicMaterial({ map: wallTexture, depthWrite: false })
       const wallMesh = new THREE.Mesh(wallGeo, wallMat)
       wallMesh.position.set(0, 0, 0)
+      wallMeshRef.current = wallMesh
 
       // compute bounding box (verification without console noise)
       wallGeo.computeBoundingBox()
@@ -257,6 +254,100 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
 
     window.addEventListener('resize', resize)
 
+    // click handling: wall click cycles images; image click zooms
+    function onPointerToNDC(ev: MouseEvent) {
+      const canvas = renderer.domElement
+      const rect = canvas.getBoundingClientRect()
+      const x = (ev.clientX - rect.left) / rect.width
+      const y = (ev.clientY - rect.top) / rect.height
+      pointer.x = x * 2 - 1
+      pointer.y = -(y * 2 - 1)
+    }
+
+    function animateCameraTo(targetX: number, targetY: number, targetZoom: number, duration = 450) {
+      const startX = camera.position.x
+      const startY = camera.position.y
+      const startZoom = camera.zoom
+      const start = performance.now()
+      function tick(now: number) {
+        const t = Math.min(1, (now - start) / duration)
+        const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+        camera.position.x = startX + (targetX - startX) * eased
+        camera.position.y = startY + (targetY - startY) * eased
+        camera.zoom = startZoom + (targetZoom - startZoom) * eased
+        camera.updateProjectionMatrix()
+        if (t < 1) requestAnimationFrame(tick)
+      }
+      requestAnimationFrame(tick)
+    }
+
+    function fitZoomForFrame(frameIndex: number): number {
+      if (!configRef.current) return 1
+      const f = configRef.current.frames[frameIndex]
+      const fw = f.w
+      const fh = f.h
+      // viewport in world units at zoom=1
+      const viewW = camera.right - camera.left // equals wallWidth
+      const viewH = camera.top - camera.bottom // equals wallHeight
+      const margin = 0.9 // keep small padding around image
+      const zoomToFitW = viewW / (fw / margin)
+      const zoomToFitH = viewH / (fh / margin)
+      const z = Math.min(zoomToFitW, zoomToFitH)
+      return Math.max(1, Math.min(z, 8))
+    }
+
+    function onClick(ev: MouseEvent) {
+      if (!rendererRef.current || !sceneRef.current || !cameraRef.current) return
+      onPointerToNDC(ev)
+      raycaster.setFromCamera(pointer, camera)
+
+      // test image meshes first
+      const hits = raycaster.intersectObjects(frameMeshesRef.current, false)
+      if (hits.length > 0) {
+        // find which frame index was clicked
+        const first = hits[0].object
+        const idx = frameMeshesRef.current.findIndex(m => m === first)
+        if (idx !== -1) {
+          const f = configRef.current?.frames[idx]
+          if (!f) return
+          const cx = f.x + f.w / 2
+          const cy = f.y + f.h / 2
+          if (zoomStateRef.current.active && zoomStateRef.current.frameIndex === idx) {
+            // toggle zoom out
+            zoomStateRef.current.active = false
+            zoomStateRef.current.frameIndex = -1
+            animateCameraTo(0, 0, 1)
+          } else {
+            // zoom in to this frame
+            zoomStateRef.current.active = true
+            zoomStateRef.current.frameIndex = idx
+            const targetZoom = fitZoomForFrame(idx)
+            animateCameraTo(cx, cy, targetZoom)
+          }
+        }
+        return
+      }
+
+      // if not on image, treat as wall click -> cycle
+      setLandscapeIndex(prev => [
+        (prev[0] + 1) % Math.max(landscapeLenRef.current, 1),
+        (prev[1] + 1) % Math.max(landscapeLenRef.current, 1)
+      ])
+      setPortraitIndex(prev => (prev + 1) % Math.max(portraitLenRef.current, 1))
+    }
+
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        // zoom out
+        zoomStateRef.current.active = false
+        zoomStateRef.current.frameIndex = -1
+        animateCameraTo(0, 0, 1)
+      }
+    }
+
+    renderer.domElement.addEventListener('click', onClick)
+    window.addEventListener('keydown', onKey)
+
     // toggle HUD with key 'p'
     function onKeyToggle(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null
@@ -275,6 +366,8 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
       clearTimeout(resizeTimeout)
       window.removeEventListener('resize', resize)
       window.removeEventListener('keydown', onKeyToggle)
+      window.removeEventListener('keydown', onKey)
+      renderer.domElement.removeEventListener('click', onClick)
       renderer.setAnimationLoop(null)
       renderer.dispose()
       if (container.contains(renderer.domElement)) {

@@ -21,8 +21,12 @@ export default async function Museum() {
     <div className="min-h-screen bg-white">
       <div className="w-full max-w-2xl mx-auto px-6 pt-40">
         <Sidebar />
+        <div className="mt-8 text-sm text-neutral-500 space-y-1">
+          <p>Click to zoom</p>
+          <p>Click the wall to advance</p>
+        </div>
       </div>
-      <div className="w-full max-w-6xl mx-auto px-6 pt-6 pb-12 animate-in">
+      <div className="w-full max-w-6xl mx-auto px-6 pt-8 lg:pt-16 pb-12">
         <section className="w-full">
           <WallGallery landscapePhotos={landscape} portraitPhotos={portrait} />
         </section>

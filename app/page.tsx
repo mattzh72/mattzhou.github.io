@@ -8,13 +8,13 @@ export default function Home() {
         <div className="animate-in">
           <section>
             <h1 className="sr-only">About</h1>
-            <p className="text-base sm:text-lg leading-relaxed mb-4">
-              I'm Matt Zhou, a photographer based in the Bay Area.
+            <p className="text-base leading-relaxed mb-4">
+              I'm currently exploring computer vision projects in Oxford.
             </p>
-            <p className="text-base sm:text-lg leading-relaxed">
+            <p className="text-base leading-relaxed">
               In my spare time I explore the world through my lens, aiming to capture moments that tell honest stories.
             </p>
-            <p className="text-base sm:text-lg leading-relaxed mt-4">
+            <p className="text-base leading-relaxed mt-4">
               Contact: mattzh1314 on
               {' '}
               <a href="https://x.com/Mattzh1314" className="text-[#002FA7] hover:opacity-80">X</a>,
