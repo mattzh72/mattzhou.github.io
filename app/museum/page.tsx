@@ -22,8 +22,8 @@ export default async function Museum() {
       <div className="w-full max-w-2xl mx-auto px-6 pt-40">
         <Sidebar />
         <div className="mt-8 text-sm text-neutral-500 space-y-1">
-          <p>Click to zoom</p>
-          <p>Click the wall to advance</p>
+          <p>Tap photos to <span className="text-neutral-900">zoom</span></p>
+          <p>Tap wall to <span className="text-neutral-900">cycle</span></p>
         </div>
       </div>
       <div className="w-full max-w-6xl mx-auto px-6 pt-8 lg:pt-16 pb-12">

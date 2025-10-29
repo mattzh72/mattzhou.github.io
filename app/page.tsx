@@ -11,16 +11,28 @@ export default function Home() {
             <p className="text-base leading-relaxed mb-4">
               I'm currently exploring computer vision projects in Oxford.
             </p>
-            <p className="text-base leading-relaxed">
-              In my spare time I explore the world through my lens, aiming to capture moments that tell honest stories.
+            <p className="text-base leading-relaxed mb-2">
+              Previously, I was the second hire at Letta, a research company focused on memory AI agents. I was involved in many parts of the stack:
             </p>
-            <p className="text-base leading-relaxed mt-4">
-              Contact: mattzh1314 on
-              {' '}
-              <a href="https://x.com/Mattzh1314" className="text-[#002FA7] hover:opacity-80">X</a>,
-              {' '}
-              <a href="https://www.instagram.com/mattzh1314/" className="text-[#002FA7] hover:opacity-80">meta</a>,
-              {' '}and gmail
+            <ul className="text-base leading-relaxed mb-4 ml-6 space-y-1">
+              <li>• Rewriting the OSS to support <a href="https://www.letta.com/case-studies/bilt" className="text-[#002FA7] hover:opacity-80">a million agents</a></li>
+              <li>• Designing agent <a href="https://www.letta.com/blog/letta-filesystem" className="text-[#002FA7] hover:opacity-80">tooling</a></li>
+              <li>• <a href="https://www.letta.com/blog/letta-evals" className="text-[#002FA7] hover:opacity-80">Evals</a>, synthetic data, and (soon) RL environments</li>
+            </ul>
+            <p className="text-base leading-relaxed mb-4">
+              Before that, I was an engineer at Databricks, working on systems and deployment. During this time, I also was working on{' '}
+              <a href="https://ai.stanford.edu/~yzzhang/projects/scene-language/" className="text-[#002FA7] hover:opacity-80">generative 3D models</a>
+              {' '}at Stanford.
+            </p>
+            <p className="text-base leading-relaxed mb-4">
+              I studied at Berkeley.
+            </p>
+            <p className="text-xs text-neutral-500 mt-8 text-right">
+              <a href="https://x.com/Mattzh1314" className="text-[#002FA7] hover:opacity-80">X</a>
+              <span className="text-neutral-900 mx-2">•</span>
+              <a href="https://www.instagram.com/mattzh1314/" className="text-[#002FA7] hover:opacity-80">Instagram</a>
+              <span className="text-neutral-900 mx-2">•</span>
+              <a href="mailto:mattzh1314@gmail.com" className="text-[#002FA7] hover:opacity-80">Email</a>
             </p>
           </section>
         </div>
