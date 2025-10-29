@@ -19,7 +19,7 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
   const configRef = useRef<WallConfig | null>(null)
   const rebuildRef = useRef<(cfg: WallConfig) => void>(() => {})
   const swapTextureRef = useRef<(frameIndex: number, src: string, w: number, h: number) => void>(() => {})
-  const [uiVisible, setUiVisible] = useState(true)
+  const [uiVisible, setUiVisible] = useState(false)
   const [selected, setSelected] = useState(0)
   const [, setTick] = useState(0) // force HUD rerenders when mutating refs
 
@@ -73,19 +73,17 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x333333) // gray until wall loads
     sceneRef.current = scene
-    console.log('Scene created')
 
     // use centered camera initially
     const camera = new THREE.OrthographicCamera(-wallWidth/2, wallWidth/2, wallHeight/2, -wallHeight/2, 0.1, 1000)
     camera.position.set(0, 0, 10)
     camera.lookAt(0, 0, 0)
     cameraRef.current = camera
-    console.log('Camera initial setup:', camera.left, camera.right, camera.top, camera.bottom)
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    renderer.setClearColor(0x171717, 1)
+    renderer.setClearColor(0x000000, 0) // transparent so the page background shows
     container.appendChild(renderer.domElement)
     rendererRef.current = renderer
 
@@ -94,7 +92,6 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
     wallLoader.load(
       '/background.jpg',
       (wallTexture) => {
-        console.log('Wall texture loaded successfully')
       wallTexture.colorSpace = THREE.SRGBColorSpace
       wallTexture.anisotropy = renderer.capabilities.getMaxAnisotropy()
 
@@ -102,7 +99,6 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
       const img = wallTexture.image as HTMLImageElement
       wallWidth = img.width
       wallHeight = img.height
-      console.log('Wall dimensions:', wallWidth, 'x', wallHeight)
 
       // update camera with actual dimensions (centered)
       camera.left = -wallWidth / 2
@@ -112,7 +108,6 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
       camera.updateProjectionMatrix()
       camera.position.set(0, 0, 10)
       camera.lookAt(0, 0, 0)
-      console.log('Camera updated:', camera.left, camera.right, camera.top, camera.bottom)
 
       // create wall background plane (centered at origin)
       const wallGeo = new THREE.PlaneGeometry(wallWidth, wallHeight)
@@ -120,14 +115,10 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
       const wallMesh = new THREE.Mesh(wallGeo, wallMat)
       wallMesh.position.set(0, 0, 0)
 
-      // compute bounding box to verify position
+      // compute bounding box (verification without console noise)
       wallGeo.computeBoundingBox()
-      const bbox = wallGeo.boundingBox!
-      console.log('Wall bounding box min:', bbox.min.x, bbox.min.y, 'max:', bbox.max.x, bbox.max.y)
-      console.log('Wall mesh position:', wallMesh.position)
 
       scene.add(wallMesh)
-      console.log('Wall mesh added to scene')
 
       // temporarily remove background color to see wall
       scene.background = null
@@ -252,9 +243,6 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
         const { clientWidth: cw, clientHeight: ch } = container
         const aspect = wallWidth / wallHeight
 
-        console.log('Container size:', cw, 'x', ch)
-        console.log('Wall aspect:', aspect)
-
         let targetW = cw
         let targetH = Math.round(cw / aspect)
 
@@ -263,13 +251,7 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
           targetW = Math.round(ch * aspect)
         }
 
-        console.log('Renderer size (target):', targetW, 'x', targetH)
         renderer.setSize(targetW, targetH, true)
-        const cssW = renderer.domElement.clientWidth
-        const cssH = renderer.domElement.clientHeight
-        const canvasAspect = renderer.domElement.width / renderer.domElement.height
-        const cssAspect = cssW / cssH
-        console.log('Canvas aspect:', canvasAspect, 'CSS aspect:', cssAspect)
       }, 10)
     }
 
@@ -306,15 +288,13 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
       <div
         ref={containerRef}
         style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
+          position: 'relative',
           width: '100%',
-          height: '100%',
+          height: 'min(72vh, 900px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: '#171717',
+          backgroundColor: '#ffffff',
           overflow: 'hidden'
         }}
       />
@@ -335,7 +315,7 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
               </label>
             </div>
             <button onClick={()=>setUiVisible(false)} style={{background:'#fff', color:'#000', padding:'2px 6px', borderRadius:4}}>Hide</button>
-            <button onClick={()=>{ if(!configRef.current) return; const cfg=configRef.current; const payload = JSON.stringify(cfg.frames.map(({id, x, y, w, h, src})=>({id,x,y,w,h,src})), null, 2); navigator.clipboard?.writeText(payload).catch(()=>{}); console.log('Frame positions copied:', payload); }} style={{background:'#fff', color:'#000', padding:'2px 6px', borderRadius:4}}>Copy JSON</button>
+            <button onClick={()=>{ if(!configRef.current) return; const cfg=configRef.current; const payload = JSON.stringify(cfg.frames.map(({id, x, y, w, h, src})=>({id,x,y,w,h,src})), null, 2); navigator.clipboard?.writeText(payload).catch(()=>{}); }} style={{background:'#fff', color:'#000', padding:'2px 6px', borderRadius:4}}>Copy JSON</button>
           </div>
           {!configRef.current && (
             <div style={{marginTop:6}}>Loading wall…</div>
@@ -362,9 +342,7 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
           )}
         </div>
       )}
-      {!uiVisible && (
-        <button onClick={()=>setUiVisible(true)} style={{position:'fixed', top:12, left:12, zIndex:1000, background:'rgba(0,0,0,0.6)', color:'#fff', padding:'6px 8px', borderRadius:6}}>Show HUD</button>
-      )}
+      {/* HUD toggle remains via 'P' key; no visual Show button when hidden */}
     </>
   )
 }
