@@ -8,7 +8,7 @@ export default function Home() {
         <div className="animate-in">
           <section>
             <p className="text-base leading-relaxed mb-4">
-              I'm currently exploring computer vision projects in Oxford.
+              I'm currently exploring computer vision projects in Oxford. 
             </p>
             <p className="text-base leading-relaxed mb-2">
               Previously, I was the second hire at Letta, a research company focused on memory AI agents. I was involved in many parts of the stack:
@@ -22,6 +22,9 @@ export default function Home() {
               Before that, I was an engineer at Databricks, working on systems and deployment. During this time, I also was working on{' '}
               <a href="https://ai.stanford.edu/~yzzhang/projects/scene-language/" className="text-[#002FA7] hover:opacity-80" target="_blank" rel="noopener noreferrer">generative 3D models</a>
               {' '}at Stanford.
+            </p>
+            <p className="text-base leading-relaxed mb-4">
+              I am an avid photographer. I make a lot of prints for friends & family.
             </p>
             <p className="text-base leading-relaxed mb-4">
               I studied at Berkeley.

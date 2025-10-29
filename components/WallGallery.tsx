@@ -22,6 +22,7 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
   const [uiVisible, setUiVisible] = useState(false)
   const [selected, setSelected] = useState(0)
   const [, setTick] = useState(0) // force HUD rerenders when mutating refs
+  const animTokenRef = useRef(0) // cancel in-flight camera animations
 
   // photo cycling state
   const [landscapeIndex, setLandscapeIndex] = useState([0, 1])
@@ -264,19 +265,37 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
       pointer.y = -(y * 2 - 1)
     }
 
-    function animateCameraTo(targetX: number, targetY: number, targetZoom: number, duration = 450) {
+    function animateCameraTo(targetX: number, targetY: number, targetZoom: number, duration = 550) {
+      // cancel any in-flight animation by bumping token
+      const token = ++animTokenRef.current
       const startX = camera.position.x
       const startY = camera.position.y
       const startZoom = camera.zoom
       const start = performance.now()
+
+      // smoothstep easing (no overshoot, gentler ends)
+      const ease = (t: number) => {
+        t = Math.min(1, Math.max(0, t))
+        return t * t * (3 - 2 * t)
+      }
+
       function tick(now: number) {
+        // if a new animation started, stop this one
+        if (token !== animTokenRef.current) return
         const t = Math.min(1, (now - start) / duration)
-        const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
-        camera.position.x = startX + (targetX - startX) * eased
-        camera.position.y = startY + (targetY - startY) * eased
-        camera.zoom = startZoom + (targetZoom - startZoom) * eased
+        const e = ease(t)
+        camera.position.x = startX + (targetX - startX) * e
+        camera.position.y = startY + (targetY - startY) * e
+        camera.zoom = startZoom + (targetZoom - startZoom) * e
         camera.updateProjectionMatrix()
-        if (t < 1) requestAnimationFrame(tick)
+        if (t < 1) {
+          requestAnimationFrame(tick)
+        } else {
+          // snap to exact target to avoid residual jitter
+          camera.position.set(targetX, targetY, camera.position.z)
+          camera.zoom = targetZoom
+          camera.updateProjectionMatrix()
+        }
       }
       requestAnimationFrame(tick)
     }
