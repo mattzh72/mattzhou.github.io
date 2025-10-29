@@ -16,7 +16,7 @@ export default function Sidebar() {
 
   return (
     <nav className="mb-12">
-      <div className="flex items-center gap-8">
+      <div className="flex items-center gap-4">
         {links.map(l => (
           <Link
             key={l.href}

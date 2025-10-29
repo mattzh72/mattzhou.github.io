@@ -7,7 +7,6 @@ export default function Home() {
         <Sidebar />
         <div className="animate-in">
           <section>
-            <h1 className="sr-only">About</h1>
             <p className="text-base leading-relaxed mb-4">
               I'm currently exploring computer vision projects in Oxford.
             </p>
