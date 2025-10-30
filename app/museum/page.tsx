@@ -27,8 +27,30 @@ export default async function Museum() {
         </div>
       </div>
       <div className="w-full max-w-6xl mx-auto px-6 pt-8 lg:pt-16 pb-12">
-        <section className="w-full">
-          <WallGallery landscapePhotos={landscape} portraitPhotos={portrait} />
+        <section className="w-full space-y-12">
+          <WallGallery
+            landscapePhotos={landscape}
+            portraitPhotos={portrait}
+            backgroundUrl="/background.jpg"
+            showPhotos={true}
+            canvasId="background"
+          />
+          <WallGallery
+            landscapePhotos={landscape}
+            portraitPhotos={portrait}
+            backgroundUrl="/art_gallery_ontario.jpg"
+            showPhotos={true}
+            canvasId="art_gallery_ontario"
+            frameLayout="art-gallery-ontario"
+          />
+          <WallGallery
+            landscapePhotos={landscape}
+            portraitPhotos={portrait}
+            backgroundUrl="/tate_modern.webp"
+            showPhotos={true}
+            canvasId="tate_modern"
+            frameLayout="tate-modern"
+          />
         </section>
       </div>
       <div className="w-full max-w-2xl mx-auto px-6 pb-12">

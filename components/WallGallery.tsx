@@ -7,9 +7,13 @@ import { createWallConfig, type FrameConfig, type WallConfig, type PhotoSize, ty
 interface WallGalleryProps {
   landscapePhotos: string[]
   portraitPhotos: string[]
+  backgroundUrl?: string
+  showPhotos?: boolean
+  canvasId?: string
+  frameLayout?: 'default' | 'art-gallery-ontario' | 'tate-modern' // default: 2L+1P, art-gallery-ontario: 5P+1L, tate-modern: 3L+5P
 }
 
-export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGalleryProps) {
+export default function WallGallery({ landscapePhotos, portraitPhotos, backgroundUrl = '/background.jpg', showPhotos = true, canvasId, frameLayout = 'default' }: WallGalleryProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -20,14 +24,32 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
   const rebuildRef = useRef<(cfg: WallConfig) => void>(() => {})
   const swapTextureRef = useRef<(frameIndex: number, src: string, w: number, h: number) => void>(() => {})
   const [uiVisible, setUiVisible] = useState(false)
+  const uiVisibleRef = useRef(false)
+  useEffect(() => { uiVisibleRef.current = uiVisible }, [uiVisible])
   const [selected, setSelected] = useState(0)
   const [, setTick] = useState(0) // force HUD rerenders when mutating refs
   const animTokenRef = useRef(0) // cancel in-flight camera animations
   const [loaded, setLoaded] = useState(false)
+  const [dragState, setDragState] = useState<{mode: 'move' | 'resize', frameIndex: number, startX: number, startY: number, initialFrame: FrameConfig} | null>(null)
 
-  // photo cycling state
-  const [landscapeIndex, setLandscapeIndex] = useState([0, 1])
-  const [portraitIndex, setPortraitIndex] = useState(0)
+  // extract clean background name for display
+  const backgroundName = backgroundUrl.split('/').pop()?.replace(/\.(jpg|jpeg|png|webp)$/i, '') || 'Unknown'
+
+  // determine frame count based on layout
+  const getFrameCounts = () => {
+    if (frameLayout === 'art-gallery-ontario') {
+      return { numPortrait: 5, numLandscape: 1 }
+    } else if (frameLayout === 'tate-modern') {
+      return { numPortrait: 5, numLandscape: 3 }
+    }
+    return { numPortrait: 1, numLandscape: 2 } // default
+  }
+
+  const { numPortrait, numLandscape } = getFrameCounts()
+
+  // photo cycling state - dynamic based on layout
+  const [landscapeIndex, setLandscapeIndex] = useState(() => Array(numLandscape).fill(0).map((_, i) => i))
+  const [portraitIndex, setPortraitIndex] = useState(() => Array(numPortrait).fill(0).map((_, i) => i))
   const landscapeLenRef = useRef(landscapePhotos.length)
   const portraitLenRef = useRef(portraitPhotos.length)
   useEffect(() => { landscapeLenRef.current = landscapePhotos.length }, [landscapePhotos.length])
@@ -41,27 +63,111 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
     canvas.style.opacity = '1'
   }, [loaded])
 
+  // clamp selected frame when config changes
+  useEffect(() => {
+    if (configRef.current && selected >= configRef.current.frames.length) {
+      setSelected(0)
+    }
+  }, [configRef.current?.frames.length, selected])
+
   // swap textures when photos change (no flashing)
   useEffect(() => {
     if (!swapTextureRef.current || !configRef.current) return
 
     const config = configRef.current
 
-    // swap frame 0 (landscape)
-    if (landscapePhotos[landscapeIndex[0]]) {
-      swapTextureRef.current(0, landscapePhotos[landscapeIndex[0]], config.frames[0].w, config.frames[0].h)
+    if (frameLayout === 'art-gallery-ontario') {
+      // 5 portraits + 1 landscape
+      // frames 0-4 are portraits, frame 5 is landscape
+      portraitIndex.forEach((idx, frameIdx) => {
+        if (portraitPhotos[idx]) {
+          swapTextureRef.current(frameIdx, portraitPhotos[idx], config.frames[frameIdx].w, config.frames[frameIdx].h)
+        }
+      })
+      if (landscapePhotos[landscapeIndex[0]]) {
+        swapTextureRef.current(5, landscapePhotos[landscapeIndex[0]], config.frames[5].w, config.frames[5].h)
+      }
+    } else if (frameLayout === 'tate-modern') {
+      // 5 portraits + 3 landscape
+      // frames 0-4 are portraits, frames 5-7 are landscape
+      portraitIndex.forEach((idx, frameIdx) => {
+        if (portraitPhotos[idx]) {
+          swapTextureRef.current(frameIdx, portraitPhotos[idx], config.frames[frameIdx].w, config.frames[frameIdx].h)
+        }
+      })
+      landscapeIndex.forEach((idx, landscapeFrameIdx) => {
+        const frameIdx = 5 + landscapeFrameIdx // frames 5, 6, 7
+        if (landscapePhotos[idx]) {
+          swapTextureRef.current(frameIdx, landscapePhotos[idx], config.frames[frameIdx].w, config.frames[frameIdx].h)
+        }
+      })
+    } else {
+      // default: 2 landscape + 1 portrait (frame 0, 2 landscape; frame 1 portrait)
+      if (landscapePhotos[landscapeIndex[0]]) {
+        swapTextureRef.current(0, landscapePhotos[landscapeIndex[0]], config.frames[0].w, config.frames[0].h)
+      }
+      if (portraitPhotos[portraitIndex[0]]) {
+        swapTextureRef.current(1, portraitPhotos[portraitIndex[0]], config.frames[1].w, config.frames[1].h)
+      }
+      if (landscapePhotos[landscapeIndex[1]]) {
+        swapTextureRef.current(2, landscapePhotos[landscapeIndex[1]], config.frames[2].w, config.frames[2].h)
+      }
+    }
+  }, [landscapeIndex, portraitIndex, landscapePhotos, portraitPhotos, frameLayout])
+
+  // handle dragging and resizing
+  useEffect(() => {
+    if (!dragState) return
+
+    // set cursor
+    document.body.style.cursor = dragState.mode === 'move' ? 'move' : 'nwse-resize'
+
+    const onMouseMove = (e: MouseEvent) => {
+      e.preventDefault()
+      if (!configRef.current) return
+
+      const pixelDx = e.clientX - dragState.startX
+      const pixelDy = e.clientY - dragState.startY
+
+      // convert screen delta to world delta
+      const { dx: worldDx, dy: worldDy } = screenDeltaToWorld(pixelDx, pixelDy)
+
+      const frame = configRef.current.frames[dragState.frameIndex]
+      const initial = dragState.initialFrame
+
+      if (dragState.mode === 'move') {
+        frame.x = initial.x + worldDx
+        frame.y = initial.y + worldDy
+      } else if (dragState.mode === 'resize') {
+        // simple scaling from center
+        const scale = 1 + (pixelDx / 200) // scale factor based on horizontal movement
+        const newW = Math.max(50, initial.w * scale)
+        const newH = Math.max(50, initial.h * scale)
+        frame.w = newW
+        frame.h = newH
+        // keep centered
+        frame.x = initial.x + (initial.w - newW) / 2
+        frame.y = initial.y + (initial.h - newH) / 2
+      }
+
+      rebuildRef.current(configRef.current)
+      setTick(t => t + 1)
     }
 
-    // swap frame 1 (portrait)
-    if (portraitPhotos[portraitIndex]) {
-      swapTextureRef.current(1, portraitPhotos[portraitIndex], config.frames[1].w, config.frames[1].h)
+    const onMouseUp = () => {
+      document.body.style.cursor = ''
+      setDragState(null)
     }
 
-    // swap frame 2 (landscape)
-    if (landscapePhotos[landscapeIndex[1]]) {
-      swapTextureRef.current(2, landscapePhotos[landscapeIndex[1]], config.frames[2].w, config.frames[2].h)
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+
+    return () => {
+      document.body.style.cursor = ''
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
     }
-  }, [landscapeIndex, portraitIndex, landscapePhotos, portraitPhotos])
+  }, [dragState])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -100,7 +206,7 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
     // load wall background image first to get actual dimensions
     const wallLoader = new THREE.TextureLoader()
     wallLoader.load(
-      '/background.jpg',
+      backgroundUrl,
       (wallTexture) => {
       wallTexture.colorSpace = THREE.SRGBColorSpace
       wallTexture.anisotropy = renderer.capabilities.getMaxAnisotropy()
@@ -217,27 +323,67 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
       }
       swapTextureRef.current = swapTexture
 
-      // preload initial photo natural sizes
-      const initialPhotoSrcs = [
-        landscapePhotos[landscapeIndex[0]],
-        portraitPhotos[portraitIndex],
-        landscapePhotos[landscapeIndex[1]]
-      ].filter(Boolean)
+      // preload initial photo natural sizes (only if showPhotos is true)
+      if (showPhotos) {
+        let initialPhotoSrcs: string[] = []
+        let isLandscapeMap: boolean[] = []
 
-      if (initialPhotoSrcs.length === 3) {
-        Promise.all(initialPhotoSrcs.map(loadImageSize)).then((sizes: PhotoSize[]) => {
-          const photosWithSizes: PhotoWithSize[] = initialPhotoSrcs.map((src, i) => {
-            const size = sizes[i]
-            const isLandscape = i !== 1 // frame 0 and 2 are landscape, frame 1 is portrait
-            return { src, size, isLandscape }
+        if (frameLayout === 'art-gallery-ontario') {
+          // 5 portraits + 1 landscape
+          portraitIndex.forEach(idx => {
+            if (portraitPhotos[idx]) {
+              initialPhotoSrcs.push(portraitPhotos[idx])
+              isLandscapeMap.push(false)
+            }
           })
+          if (landscapePhotos[landscapeIndex[0]]) {
+            initialPhotoSrcs.push(landscapePhotos[landscapeIndex[0]])
+            isLandscapeMap.push(true)
+          }
+        } else if (frameLayout === 'tate-modern') {
+          // 5 portraits + 3 landscape
+          portraitIndex.forEach(idx => {
+            if (portraitPhotos[idx]) {
+              initialPhotoSrcs.push(portraitPhotos[idx])
+              isLandscapeMap.push(false)
+            }
+          })
+          landscapeIndex.forEach(idx => {
+            if (landscapePhotos[idx]) {
+              initialPhotoSrcs.push(landscapePhotos[idx])
+              isLandscapeMap.push(true)
+            }
+          })
+        } else {
+          // default: 2 landscape + 1 portrait
+          initialPhotoSrcs = [
+            landscapePhotos[landscapeIndex[0]],
+            portraitPhotos[portraitIndex[0]],
+            landscapePhotos[landscapeIndex[1]]
+          ].filter(Boolean)
+          isLandscapeMap = [true, false, true]
+        }
 
-          const config = createWallConfig(wallWidth, wallHeight, photosWithSizes)
-          configRef.current = config
-          rebuildFrames(config)
-          // trigger fade-in effect
-          setTimeout(() => setLoaded(true), 100)
-        })
+        const expectedCount = frameLayout === 'art-gallery-ontario' ? 6 : frameLayout === 'tate-modern' ? 8 : 3
+
+        if (initialPhotoSrcs.length === expectedCount) {
+          Promise.all(initialPhotoSrcs.map(loadImageSize)).then((sizes: PhotoSize[]) => {
+            const photosWithSizes: PhotoWithSize[] = initialPhotoSrcs.map((src, i) => {
+              const size = sizes[i]
+              const isLandscape = isLandscapeMap[i]
+              return { src, size, isLandscape }
+            })
+
+            const config = createWallConfig(wallWidth, wallHeight, photosWithSizes, frameLayout)
+            configRef.current = config
+            rebuildFrames(config)
+            // trigger fade-in effect
+            setTimeout(() => setLoaded(true), 100)
+          })
+        }
+      } else {
+        // just show background without photos
+        setTimeout(() => setLoaded(true), 100)
       }
 
       // initial resize
@@ -245,7 +391,7 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
     },
     undefined,
     (error) => {
-      console.error('Error loading background.jpg:', error)
+      console.error(`Error loading ${backgroundUrl}:`, error)
     })
 
     // resize handler
@@ -331,6 +477,9 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
     }
 
     function onClick(ev: MouseEvent) {
+      // disable all interactions when in edit mode
+      if (uiVisibleRef.current) return
+
       if (!rendererRef.current || !sceneRef.current || !cameraRef.current) return
       onPointerToNDC(ev)
       raycaster.setFromCamera(pointer, camera)
@@ -363,32 +512,33 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
       }
 
       // if not on image, treat as wall click -> cycle
-      setLandscapeIndex(prev => [
-        (prev[0] + 1) % Math.max(landscapeLenRef.current, 1),
-        (prev[1] + 1) % Math.max(landscapeLenRef.current, 1)
-      ])
-      setPortraitIndex(prev => (prev + 1) % Math.max(portraitLenRef.current, 1))
+      setLandscapeIndex(prev => prev.map(idx => (idx + 1) % Math.max(landscapeLenRef.current, 1)))
+      setPortraitIndex(prev => prev.map(idx => (idx + 1) % Math.max(portraitLenRef.current, 1)))
     }
 
     function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+
       if (e.key === 'Escape') {
-        // zoom out
-        zoomStateRef.current.active = false
-        zoomStateRef.current.frameIndex = -1
-        animateCameraTo(0, 0, 1)
+        // close HUD if open, otherwise zoom out
+        if (uiVisibleRef.current) {
+          setUiVisible(false)
+        } else {
+          zoomStateRef.current.active = false
+          zoomStateRef.current.frameIndex = -1
+          animateCameraTo(0, 0, 1)
+        }
+      }
+
+      // toggle HUD with key 'p'
+      if (e.key.toLowerCase() === 'p') {
+        setUiVisible(v => !v)
       }
     }
 
     renderer.domElement.addEventListener('click', onClick)
     window.addEventListener('keydown', onKey)
-
-    // toggle HUD with key 'p'
-    function onKeyToggle(e: KeyboardEvent) {
-      const target = e.target as HTMLElement | null
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
-      if (e.key.toLowerCase() === 'p') setUiVisible(v => !v)
-    }
-    window.addEventListener('keydown', onKeyToggle)
 
     // render loop
     renderer.setAnimationLoop(() => {
@@ -399,7 +549,6 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
     return () => {
       clearTimeout(resizeTimeout)
       window.removeEventListener('resize', resize)
-      window.removeEventListener('keydown', onKeyToggle)
       window.removeEventListener('keydown', onKey)
       renderer.domElement.removeEventListener('click', onClick)
       renderer.setAnimationLoop(null)
@@ -410,8 +559,56 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
     }
   }, [])
 
+  // convert world coords to screen pixel coords relative to container
+  const worldToScreen = (x: number, y: number) => {
+    if (!rendererRef.current || !cameraRef.current || !containerRef.current) return { x: 0, y: 0 }
+
+    const canvas = rendererRef.current.domElement
+    const canvasRect = canvas.getBoundingClientRect()
+    const containerRect = containerRef.current.getBoundingClientRect()
+    const camera = cameraRef.current
+
+    // camera is orthographic, centered at (0, 0)
+    const worldW = camera.right - camera.left
+    const worldH = camera.top - camera.bottom
+
+    // normalize to 0-1 within world space
+    const nx = (x - camera.left) / worldW
+    const ny = (camera.top - y) / worldH // flip Y
+
+    // convert to pixel coords on canvas
+    const canvasX = nx * canvasRect.width
+    const canvasY = ny * canvasRect.height
+
+    // offset by canvas position relative to container
+    const offsetX = canvasRect.left - containerRect.left
+    const offsetY = canvasRect.top - containerRect.top
+
+    return {
+      x: offsetX + canvasX,
+      y: offsetY + canvasY
+    }
+  }
+
+  // convert screen pixel delta to world coordinate delta
+  const screenDeltaToWorld = (dx: number, dy: number) => {
+    if (!rendererRef.current || !cameraRef.current) return { dx: 0, dy: 0 }
+
+    const canvas = rendererRef.current.domElement
+    const canvasRect = canvas.getBoundingClientRect()
+    const camera = cameraRef.current
+
+    const worldW = camera.right - camera.left
+    const worldH = camera.top - camera.bottom
+
+    return {
+      dx: (dx / canvasRect.width) * worldW,
+      dy: -(dy / canvasRect.height) * worldH // flip Y
+    }
+  }
+
   return (
-    <>
+    <div style={{position: 'relative', width: '100%'}}>
       <div
         ref={containerRef}
         style={{
@@ -424,25 +621,126 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
           backgroundColor: '#ffffff',
           overflow: 'hidden'
         }}
-      />
+      >
+        {/* Interactive overlay for dragging/resizing frames */}
+        {uiVisible && showPhotos && configRef.current && rendererRef.current && containerRef.current && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+            zIndex: 10
+          }}>
+            {configRef.current.frames.map((frame, idx) => {
+              const topLeft = worldToScreen(frame.x, frame.y)
+              const bottomRight = worldToScreen(frame.x + frame.w, frame.y + frame.h)
+              const screenW = bottomRight.x - topLeft.x
+              const screenH = bottomRight.y - topLeft.y
+              const isSelected = idx === selected
+
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    position: 'absolute',
+                    left: topLeft.x,
+                    top: topLeft.y,
+                    width: screenW,
+                    height: screenH,
+                    border: isSelected ? '3px solid #00ff00' : '2px dashed rgba(255,255,255,0.6)',
+                    backgroundColor: isSelected ? 'rgba(0,255,0,0.1)' : 'rgba(255,255,255,0.05)',
+                    pointerEvents: 'auto',
+                    cursor: 'move',
+                    boxSizing: 'border-box'
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setSelected(idx)
+                    setDragState({
+                      mode: 'move',
+                      frameIndex: idx,
+                      startX: e.clientX,
+                      startY: e.clientY,
+                      initialFrame: { ...frame }
+                    })
+                  }}
+                >
+                  {/* Resize handles at corners */}
+                  {isSelected && ['nw', 'ne', 'sw', 'se'].map(corner => (
+                    <div
+                      key={corner}
+                      style={{
+                        position: 'absolute',
+                        width: 12,
+                        height: 12,
+                        background: '#00ff00',
+                        border: '2px solid #000',
+                        borderRadius: '50%',
+                        ...(corner.includes('n') ? { top: -6 } : { bottom: -6 }),
+                        ...(corner.includes('w') ? { left: -6 } : { right: -6 }),
+                        cursor: `${corner}-resize`,
+                        pointerEvents: 'auto'
+                      }}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setSelected(idx)
+                        setDragState({
+                          mode: 'resize',
+                          frameIndex: idx,
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          initialFrame: { ...frame }
+                        })
+                        // store which corner for resize logic
+                        ;(e.target as HTMLElement).dataset.corner = corner
+                      }}
+                    />
+                  ))}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
       {uiVisible && (
-        <div style={{position:'fixed', top:12, left:12, zIndex:1000, background:'rgba(0,0,0,0.6)', color:'#fff', padding:'10px 12px', borderRadius:8, fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize:12, lineHeight:1.4}}>
-          <div style={{marginBottom:6}}>Controls: select via HUD • Set position and size with inputs • Use buttons for quick scale • Copy JSON</div>
+        <div style={{position:'absolute', top:12, right:12, zIndex:1000, background:'rgba(0,0,0,0.9)', color:'#fff', padding:'12px 16px', borderRadius:8, fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize:12, lineHeight:1.5, maxWidth:600, border:'2px solid #00ff00', boxShadow:'0 4px 12px rgba(0,0,0,0.5)'}}>
+          <div style={{marginBottom:8, fontSize:14, fontWeight:'bold', color:'#00ff00'}}>
+            Editing: {backgroundName} - Frame {selected + 1}
+            {dragState && <span style={{marginLeft:8, color:'#ff0', fontSize:11}}>({dragState.mode})</span>}
+          </div>
+          <div style={{marginBottom:8, fontSize:11, color:'#ccc'}}>Drag frames to move • Drag corner handles to resize • Use inputs for precision</div>
           <div style={{display:'flex', gap:16, alignItems:'center', flexWrap:'wrap'}}>
             <div style={{display:'flex', gap:8, alignItems:'center'}}>
               <span>Select:</span>
-              <label style={{display:'inline-flex', alignItems:'center', gap:4}}>
-                <input type="radio" name="selFrame" checked={selected===0} onChange={()=>setSelected(0)} /> 1
-              </label>
-              <label style={{display:'inline-flex', alignItems:'center', gap:4}}>
-                <input type="radio" name="selFrame" checked={selected===1} onChange={()=>setSelected(1)} /> 2
-              </label>
-              <label style={{display:'inline-flex', alignItems:'center', gap:4}}>
-                <input type="radio" name="selFrame" checked={selected===2} onChange={()=>setSelected(2)} /> 3
-              </label>
+              {configRef.current?.frames.map((_, idx) => (
+                <label key={idx} style={{display:'inline-flex', alignItems:'center', gap:4, cursor:'pointer'}}>
+                  <input
+                    type="radio"
+                    name={`selFrame-${canvasId}`}
+                    checked={selected===idx}
+                    onChange={()=>{setSelected(idx); setTick(t=>t+1);}}
+                    style={{cursor:'pointer'}}
+                  /> {idx + 1}
+                </label>
+              ))}
             </div>
-            <button onClick={()=>setUiVisible(false)} style={{background:'#fff', color:'#000', padding:'2px 6px', borderRadius:4}}>Hide</button>
-            <button onClick={()=>{ if(!configRef.current) return; const cfg=configRef.current; const payload = JSON.stringify(cfg.frames.map(({id, x, y, w, h, src})=>({id,x,y,w,h,src})), null, 2); navigator.clipboard?.writeText(payload).catch(()=>{}); }} style={{background:'#fff', color:'#000', padding:'2px 6px', borderRadius:4}}>Copy JSON</button>
+            <button onClick={()=>setUiVisible(false)} style={{background:'#fff', color:'#000', padding:'4px 8px', borderRadius:4, cursor:'pointer'}}>Hide (ESC)</button>
+            <button onClick={()=>{
+              if(!configRef.current) return;
+              const cfg=configRef.current;
+              const payload = JSON.stringify({
+                canvas: backgroundName,
+                backgroundUrl: backgroundUrl,
+                frames: cfg.frames.map(({id, x, y, w, h})=>({id, x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h)}))
+              }, null, 2);
+              navigator.clipboard?.writeText(payload).then(() => {
+                alert(`Configuration for "${backgroundName}" copied to clipboard!`)
+              }).catch(()=>{});
+            }} style={{background:'#00ff00', color:'#000', padding:'4px 8px', borderRadius:4, cursor:'pointer', fontWeight:'bold'}}>Copy JSON</button>
           </div>
           {!configRef.current && (
             <div style={{marginTop:6}}>Loading wall…</div>
@@ -470,7 +768,7 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
         </div>
       )}
       {/* HUD toggle remains via 'P' key; no visual Show button when hidden */}
-    </>
+    </div>
   )
 }
 
@@ -484,33 +782,21 @@ function createFrame(
   const { x, y, w, h, src, id } = config
   const group = new THREE.Group()
 
-  const outerW = w + borderPx * 2
-  const outerH = h + borderPx * 2
-
   // soft drop shadow (underneath) using a generated CanvasTexture
-  // very subtle soft shadow with per-frame variation
-  const shadowPad = Math.max(12, Math.round(Math.min(outerW, outerH) * 0.025))
-  const shadowBlur = Math.max(24, Math.round(Math.min(outerW, outerH) * 0.08))
-  const shadowOffsetY = Math.round(Math.min(outerH, 40) * 0.1) // tiny offset
+  const shadowPad = Math.max(12, Math.round(Math.min(w, h) * 0.025))
+  const shadowBlur = Math.max(24, Math.round(Math.min(w, h) * 0.08))
+  const shadowOffsetY = Math.round(Math.min(h, 40) * 0.1)
 
   // add slight variation per frame for realism
   const frameIndex = parseInt(id.split('-')[1]) || 0
-  const variation = 0.8 + (frameIndex * 0.1) // 0.8, 0.9, 1.0 for frames 0,1,2
+  const variation = 0.8 + (frameIndex * 0.1)
 
-  const shadowTex = createSoftShadowTexture(outerW, outerH, shadowPad, shadowBlur, shadowOpacity, shadowOffsetY, variation)
-  const shadowGeo = new THREE.PlaneGeometry(outerW + shadowPad * 2, outerH + shadowPad * 2)
+  const shadowTex = createSoftShadowTexture(w, h, shadowPad, shadowBlur, shadowOpacity, shadowOffsetY, variation)
+  const shadowGeo = new THREE.PlaneGeometry(w + shadowPad * 2, h + shadowPad * 2)
   const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false })
   const shadow = new THREE.Mesh(shadowGeo, shadowMat)
   shadow.position.set(x + w / 2, y + h / 2, 0.0)
   group.add(shadow)
-
-  // slim white frame
-  const borderGeo = new THREE.PlaneGeometry(outerW, outerH)
-  // border color: exact rgb(213,213,213) (#d5d5d5)
-  const borderMat = new THREE.MeshBasicMaterial({ color: 0xD5D5D5 })
-  const border = new THREE.Mesh(borderGeo, borderMat)
-  border.position.set(x + w / 2, y + h / 2, 0.001)
-  group.add(border)
 
   // image quad (muted via shader once texture loads)
   const imgGeo = new THREE.PlaneGeometry(w, h)
@@ -552,52 +838,7 @@ function createFrame(
 
   group.add(img)
 
-  // add thumbtacks at four corners
-  const tackSize = Math.min(5, Math.max(2.5, w * 0.01)) // smaller
-  const tackInset = borderPx * 0.5 // position on the border
-
-  // corner positions (relative to frame)
-  const corners = [
-    { x: x + tackInset, y: y + tackInset },                    // top-left
-    { x: x + w - tackInset, y: y + tackInset },                // top-right
-    { x: x + tackInset, y: y + h - tackInset },                // bottom-left
-    { x: x + w - tackInset, y: y + h - tackInset }             // bottom-right
-  ]
-
-  corners.forEach(corner => {
-    const tack = createThumbtack(corner.x, corner.y, tackSize)
-    group.add(tack)
-  })
-
   return { group, imgMesh: img }
-}
-
-function createThumbtack(x: number, y: number, size: number): THREE.Group {
-  const group = new THREE.Group()
-
-  // small shadow underneath tack (pointing straight down)
-  const shadowGeo = new THREE.CircleGeometry(size * 0.6, 16)
-  const shadowMat = new THREE.MeshBasicMaterial({
-    color: 0x000000,
-    transparent: true,
-    opacity: 0.3
-  })
-  const shadow = new THREE.Mesh(shadowGeo, shadowMat)
-  shadow.position.set(x, y - size * 0.15, 0.003) // straight down
-  group.add(shadow)
-
-  // clear thumbtack (translucent with slight tint)
-  const tackGeo = new THREE.CircleGeometry(size * 0.5, 16)
-  const tackMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.3 // clear but still visible
-  })
-  const tack = new THREE.Mesh(tackGeo, tackMat)
-  tack.position.set(x, y, 0.004)
-  group.add(tack)
-
-  return group
 }
 
 function rebuildFrames(config: WallConfig) {

@@ -8,7 +8,7 @@ export default function Home() {
         <div className="animate-in">
           <section>
             <p className="text-base leading-relaxed mb-4">
-              I'm currently exploring computer vision projects in Oxford. 
+              I'm currently exploring computer vision projects. 
             </p>
             <p className="text-base leading-relaxed mb-2">
               Previously, I was the second hire at Letta, a research company focused on memory AI agents. I was involved in many parts of the stack:
