@@ -23,6 +23,7 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
   const [selected, setSelected] = useState(0)
   const [, setTick] = useState(0) // force HUD rerenders when mutating refs
   const animTokenRef = useRef(0) // cancel in-flight camera animations
+  const [loaded, setLoaded] = useState(false)
 
   // photo cycling state
   const [landscapeIndex, setLandscapeIndex] = useState([0, 1])
@@ -32,6 +33,13 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
   useEffect(() => { landscapeLenRef.current = landscapePhotos.length }, [landscapePhotos.length])
   useEffect(() => { portraitLenRef.current = portraitPhotos.length }, [portraitPhotos.length])
   // click-based cycling replaces timer; see click handler below
+
+  // fade in effect once loaded
+  useEffect(() => {
+    if (!loaded || !rendererRef.current) return
+    const canvas = rendererRef.current.domElement
+    canvas.style.opacity = '1'
+  }, [loaded])
 
   // swap textures when photos change (no flashing)
   useEffect(() => {
@@ -81,6 +89,11 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.setClearColor(0x000000, 0) // transparent so the page background shows
+
+    // simple fade in effect
+    renderer.domElement.style.opacity = '0'
+    renderer.domElement.style.transition = 'opacity 1s ease-out'
+
     container.appendChild(renderer.domElement)
     rendererRef.current = renderer
 
@@ -222,6 +235,8 @@ export default function WallGallery({ landscapePhotos, portraitPhotos }: WallGal
           const config = createWallConfig(wallWidth, wallHeight, photosWithSizes)
           configRef.current = config
           rebuildFrames(config)
+          // trigger fade-in effect
+          setTimeout(() => setLoaded(true), 100)
         })
       }
 
