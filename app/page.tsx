@@ -24,9 +24,6 @@ export default function Home() {
               {' '}at Stanford.
             </p>
             <p className="text-base leading-relaxed mb-4">
-              I am an avid photographer. I make a lot of prints for friends & family.
-            </p>
-            <p className="text-base leading-relaxed mb-4">
               I studied at Berkeley.
             </p>
             <p className="text-xs text-neutral-500 mt-8 text-right">

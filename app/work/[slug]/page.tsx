@@ -37,6 +37,13 @@ export default function BlogPost({ params }: { params: { slug: string } }) {
             <div className="prose prose-neutral prose-sm max-w-none">
               <ReactMarkdown>{post.content}</ReactMarkdown>
             </div>
+            <p className="text-xs text-neutral-500 mt-8 text-right">
+              <a href="https://x.com/Mattzh1314" className="text-[#002FA7] hover:opacity-80" target="_blank" rel="noopener noreferrer">X</a>
+              <span className="text-neutral-900 mx-2">•</span>
+              <a href="https://www.instagram.com/mattzh1314/" className="text-[#002FA7] hover:opacity-80" target="_blank" rel="noopener noreferrer">Instagram</a>
+              <span className="text-neutral-900 mx-2">•</span>
+              <a href="mailto:mattzh1314@gmail.com" className="text-[#002FA7] hover:opacity-80">Email</a>
+            </p>
           </article>
         </div>
       </div>

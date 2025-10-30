@@ -1,35 +1,18 @@
 import Sidebar from '@/components/Sidebar'
-import Link from 'next/link'
-import { getAllBlogPosts } from '@/lib/blog'
 
-export default function Work() {
-  const posts = getAllBlogPosts()
-
+export default function Contact() {
   return (
     <div className="min-h-screen bg-white">
       <div className="w-full max-w-2xl mx-auto px-6 pt-40">
         <Sidebar />
         <div className="animate-in">
           <section>
-            <div className="space-y-8">
-              {posts.map((post) => (
-                <Link
-                  key={post.slug}
-                  href={`/work/${post.slug}`}
-                  className="block group"
-                >
-                  <h2 className="text-lg font-medium tracking-tight text-neutral-900 group-hover:text-[#002FA7] transition-colors">
-                    {post.title}
-                  </h2>
-                  <p className="text-sm text-neutral-600 mt-1">
-                    {post.subheader}
-                  </p>
-                  <p className="text-xs text-neutral-400 mt-2">
-                    {post.date}
-                  </p>
-                </Link>
-              ))}
-            </div>
+            <p className="text-base leading-relaxed mb-4">
+              I am an avid photographer. I make a lot of prints for friends & family, so if you want a print, let's be friends!
+            </p>
+            <p className="text-base leading-relaxed mb-4">
+              I'm open to collaborating on both technical and creative projects, contact me on either X or email.
+            </p>
             <p className="text-xs text-neutral-500 mt-8 text-right">
               <a href="https://x.com/Mattzh1314" className="text-[#002FA7] hover:opacity-80" target="_blank" rel="noopener noreferrer">X</a>
               <span className="text-neutral-900 mx-2">•</span>
