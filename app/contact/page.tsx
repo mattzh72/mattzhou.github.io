@@ -8,7 +8,7 @@ export default function Contact() {
         <div className="animate-in">
           <section>
             <p className="text-base leading-relaxed mb-4">
-              I am an avid photographer. I make a lot of prints for friends & family, so if you want a print, let's be friends!
+              I am an avid photographer. I make a lot of prints for friends & family, so if you want a print, let's be friends.
             </p>
             <p className="text-base leading-relaxed mb-4">
               I'm open to collaborating on both technical and creative projects - feel free to reach out!

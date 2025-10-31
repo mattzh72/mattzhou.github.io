@@ -20,6 +20,7 @@ export default function WallGallery({ landscapePhotos, portraitPhotos, backgroun
   const cameraRef = useRef<THREE.OrthographicCamera | null>(null)
   const frameGroupsRef = useRef<THREE.Group[]>([])
   const frameMeshesRef = useRef<THREE.Mesh[]>([]) // references to image meshes for swapping
+  const frameImageDimensionsRef = useRef<{width: number, height: number}[]>([]) // store actual image dimensions
   const configRef = useRef<WallConfig | null>(null)
   const rebuildRef = useRef<(cfg: WallConfig) => void>(() => {})
   const swapTextureRef = useRef<(frameIndex: number, src: string, w: number, h: number) => void>(() => {})
@@ -31,6 +32,8 @@ export default function WallGallery({ landscapePhotos, portraitPhotos, backgroun
   const animTokenRef = useRef(0) // cancel in-flight camera animations
   const [loaded, setLoaded] = useState(false)
   const [dragState, setDragState] = useState<{mode: 'move' | 'resize', frameIndex: number, startX: number, startY: number, initialFrame: FrameConfig} | null>(null)
+  const [wallDims, setWallDims] = useState<{ w: number, h: number } | null>(null)
+  const [drawDims, setDrawDims] = useState<{ w: number, h: number } | null>(null)
 
   // extract clean background name for display
   const backgroundName = backgroundUrl.split('/').pop()?.replace(/\.(jpg|jpeg|png|webp)$/i, '') || 'Unknown'
@@ -225,6 +228,9 @@ export default function WallGallery({ landscapePhotos, portraitPhotos, backgroun
       camera.position.set(0, 0, 10)
       camera.lookAt(0, 0, 0)
 
+      // record natural image dimensions for layout
+      setWallDims({ w: wallWidth, h: wallHeight })
+
       // create wall background plane (centered at origin)
       const wallGeo = new THREE.PlaneGeometry(wallWidth, wallHeight)
       const wallMat = new THREE.MeshBasicMaterial({ map: wallTexture, depthWrite: false })
@@ -240,6 +246,8 @@ export default function WallGallery({ landscapePhotos, portraitPhotos, backgroun
       // temporarily remove background color to see wall
       scene.background = null
 
+      // no dim overlay (removed per preference)
+
       // derive a wall tone to softly tint photos (blend into scene)
       const wallToneColor = new THREE.Color(...avgColorFromImage(img))
 
@@ -249,13 +257,25 @@ export default function WallGallery({ landscapePhotos, portraitPhotos, backgroun
         frameGroupsRef.current.forEach(g => scene.remove(g))
         frameGroupsRef.current = []
         frameMeshesRef.current = []
+        frameImageDimensionsRef.current = []
         // add new groups
-        cfg.frames.forEach(frameConfig => {
-          const { group, imgMesh } = createFrame(frameConfig, cfg.frameStyle.border, cfg.frameStyle.shadowOpacity, renderer, wallToneColor)
+        cfg.frames.forEach((frameConfig, idx) => {
+          const { group, imgMesh } = createFrame(
+            frameConfig,
+            cfg.frameStyle.border,
+            cfg.frameStyle.shadowOpacity,
+            renderer,
+            wallToneColor,
+            (width: number, height: number) => {
+              // callback to store image dimensions
+              frameImageDimensionsRef.current[idx] = { width, height }
+            }
+          )
           scene.add(group)
           frameGroupsRef.current.push(group)
           frameMeshesRef.current.push(imgMesh)
         })
+        // no special z-ordering needed without dim overlay
       }
       rebuildRef.current = rebuildFrames
 
@@ -272,17 +292,32 @@ export default function WallGallery({ landscapePhotos, portraitPhotos, backgroun
           texture.colorSpace = THREE.SRGBColorSpace
           texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
 
-          // implement "object-fit: cover" behavior via repeat/offset
-          const imgAspect = texture.image.width / texture.image.height
-          const frameAspect = w / h
-          if (imgAspect > frameAspect) {
-            const scale = frameAspect / imgAspect
-            texture.repeat.set(scale, 1)
-            texture.offset.set((1 - scale) / 2, 0)
+          // store image dimensions
+          frameImageDimensionsRef.current[frameIndex] = {
+            width: texture.image.width,
+            height: texture.image.height
+          }
+
+          // check if this frame is currently zoomed
+          const isZoomed = zoomStateRef.current.active && zoomStateRef.current.frameIndex === frameIndex
+
+          if (isZoomed) {
+            // if zoomed, show full image
+            texture.repeat.set(1, 1)
+            texture.offset.set(0, 0)
           } else {
-            const scale = imgAspect / frameAspect
-            texture.repeat.set(1, scale)
-            texture.offset.set(0, (1 - scale) / 2)
+            // implement "object-fit: cover" behavior via repeat/offset
+            const imgAspect = texture.image.width / texture.image.height
+            const frameAspect = w / h
+            if (imgAspect > frameAspect) {
+              const scale = frameAspect / imgAspect
+              texture.repeat.set(scale, 1)
+              texture.offset.set((1 - scale) / 2, 0)
+            } else {
+              const scale = imgAspect / frameAspect
+              texture.repeat.set(1, scale)
+              texture.offset.set(0, (1 - scale) / 2)
+            }
           }
 
           // crossfade overlay to avoid any flash
@@ -394,23 +429,39 @@ export default function WallGallery({ landscapePhotos, portraitPhotos, backgroun
       console.error(`Error loading ${backgroundUrl}:`, error)
     })
 
-    // resize handler
+    // resize handler — scale down to fit parent (contain, no crop), never scale up
     let resizeTimeout: NodeJS.Timeout
     function resize() {
       clearTimeout(resizeTimeout)
       resizeTimeout = setTimeout(() => {
-        const { clientWidth: cw, clientHeight: ch } = container
-        const aspect = wallWidth / wallHeight
+        if (!wallWidth || !wallHeight) return
 
-        let targetW = cw
-        let targetH = Math.round(cw / aspect)
+        // Available width is the parent's content box; fallback to viewport width
+        const parent = container.parentElement as HTMLElement | null
+        let availW = parent?.clientWidth || window.innerWidth
+        // Cap maximum visual width to keep the gallery comfortable on large screens
+        const hardMaxW = 1000
+        availW = Math.min(availW, hardMaxW)
+        // Constrain height to a comfortable max (e.g., 72vh up to 900px)
+        const maxH = Math.min(Math.round(window.innerHeight * 0.72), 900)
 
-        if (targetH > ch) {
-          targetH = ch
-          targetW = Math.round(ch * aspect)
-        }
+        const scaleW = availW / wallWidth
+        const scaleH = maxH / wallHeight
+        const scale = Math.min(scaleW, scaleH, 1)
 
+        const targetW = Math.max(1, Math.round(wallWidth * scale))
+        const targetH = Math.max(1, Math.round(wallHeight * scale))
+
+        // Size renderer to the scaled dimensions
         renderer.setSize(targetW, targetH, true)
+        setDrawDims({ w: targetW, h: targetH })
+
+        // Show full image in camera (no crop); aspect matches scaled dims
+        camera.left = -wallWidth / 2
+        camera.right = wallWidth / 2
+        camera.top = wallHeight / 2
+        camera.bottom = -wallHeight / 2
+        camera.updateProjectionMatrix()
       }, 10)
     }
 
@@ -461,11 +512,29 @@ export default function WallGallery({ landscapePhotos, portraitPhotos, backgroun
       requestAnimationFrame(tick)
     }
 
-    function fitZoomForFrame(frameIndex: number): number {
+    function fitZoomForFrame(frameIndex: number, useActualDimensions: boolean = false): number {
       if (!configRef.current) return 1
       const f = configRef.current.frames[frameIndex]
-      const fw = f.w
-      const fh = f.h
+
+      let fw = f.w
+      let fh = f.h
+
+      // if zooming in and we have actual image dimensions, use those to show full image
+      if (useActualDimensions && frameImageDimensionsRef.current[frameIndex]) {
+        const imgDims = frameImageDimensionsRef.current[frameIndex]
+        const imgAspect = imgDims.width / imgDims.height
+        const frameAspect = f.w / f.h
+
+        // calculate what the frame size would be if showing full image
+        if (imgAspect > frameAspect) {
+          // image is wider - width stays same, height gets smaller
+          fh = f.w / imgAspect
+        } else {
+          // image is taller - height stays same, width gets smaller
+          fw = f.h * imgAspect
+        }
+      }
+
       // viewport in world units at zoom=1
       const viewW = camera.right - camera.left // equals wallWidth
       const viewH = camera.top - camera.bottom // equals wallHeight
@@ -474,6 +543,82 @@ export default function WallGallery({ landscapePhotos, portraitPhotos, backgroun
       const zoomToFitH = viewH / (fh / margin)
       const z = Math.min(zoomToFitW, zoomToFitH)
       return Math.max(1, Math.min(z, 8))
+    }
+
+    // dim overlay removed
+
+    // helper to morph frame to show full uncropped image
+    function setFrameToFullImage(frameIndex: number, showFull: boolean) {
+      const imgMesh = frameMeshesRef.current[frameIndex]
+      if (!imgMesh) return
+
+      const mat = imgMesh.material as THREE.MeshBasicMaterial
+      const texture = mat.map
+      if (!texture) return
+
+      const f = configRef.current?.frames[frameIndex]
+      if (!f) return
+
+      const imgDims = frameImageDimensionsRef.current[frameIndex]
+      if (!imgDims) return
+
+      const imgAspect = imgDims.width / imgDims.height
+      const frameAspect = f.w / f.h
+
+      let targetW = f.w
+      let targetH = f.h
+
+      if (showFull) {
+        // show full uncropped image
+        texture.repeat.set(1, 1)
+        texture.offset.set(0, 0)
+        texture.needsUpdate = true
+
+        // calculate dimensions to show full image at original aspect ratio
+        if (imgAspect > frameAspect) {
+          // image is wider - keep width, reduce height
+          targetH = f.w / imgAspect
+        } else {
+          // image is taller - keep height, reduce width
+          targetW = f.h * imgAspect
+        }
+      } else {
+        // restore cropped view (object-fit: cover)
+        if (imgAspect > frameAspect) {
+          const scale = frameAspect / imgAspect
+          texture.repeat.set(scale, 1)
+          texture.offset.set((1 - scale) / 2, 0)
+        } else {
+          const scale = imgAspect / frameAspect
+          texture.repeat.set(1, scale)
+          texture.offset.set(0, (1 - scale) / 2)
+        }
+        texture.needsUpdate = true
+      }
+
+      // animate geometry resize
+      const geo = imgMesh.geometry as THREE.PlaneGeometry
+      const startW = geo.parameters.width
+      const startH = geo.parameters.height
+      const startTime = performance.now()
+      const duration = 300
+
+      function animate(now: number) {
+        const t = Math.min(1, (now - startTime) / duration)
+        const eased = t < 0.5 ? 2*t*t : -1 + (4 - 2*t)*t // ease in-out
+
+        const currentW = startW + (targetW - startW) * eased
+        const currentH = startH + (targetH - startH) * eased
+
+        // update geometry
+        imgMesh.geometry.dispose()
+        imgMesh.geometry = new THREE.PlaneGeometry(currentW, currentH)
+
+        if (t < 1) {
+          requestAnimationFrame(animate)
+        }
+      }
+      requestAnimationFrame(animate)
     }
 
     function onClick(ev: MouseEvent) {
@@ -496,15 +641,23 @@ export default function WallGallery({ landscapePhotos, portraitPhotos, backgroun
           const cx = f.x + f.w / 2
           const cy = f.y + f.h / 2
           if (zoomStateRef.current.active && zoomStateRef.current.frameIndex === idx) {
-            // toggle zoom out
+            // toggle zoom out - restore cropped view
+            setFrameToFullImage(idx, false)
+            // no dim overlay to adjust
             zoomStateRef.current.active = false
             zoomStateRef.current.frameIndex = -1
             animateCameraTo(0, 0, 1)
           } else {
-            // zoom in to this frame
+            // zoom out previous frame if any
+            if (zoomStateRef.current.active && zoomStateRef.current.frameIndex !== -1) {
+              setFrameToFullImage(zoomStateRef.current.frameIndex, false)
+            }
+            // zoom in to this frame - show full image
+            setFrameToFullImage(idx, true)
             zoomStateRef.current.active = true
             zoomStateRef.current.frameIndex = idx
-            const targetZoom = fitZoomForFrame(idx)
+            // no overlay, keep default z
+            const targetZoom = fitZoomForFrame(idx, true)
             animateCameraTo(cx, cy, targetZoom)
           }
         }
@@ -525,6 +678,11 @@ export default function WallGallery({ landscapePhotos, portraitPhotos, backgroun
         if (uiVisibleRef.current) {
           setUiVisible(false)
         } else {
+          // zoom out and restore cropped view
+          if (zoomStateRef.current.frameIndex !== -1) {
+            setFrameToFullImage(zoomStateRef.current.frameIndex, false)
+          }
+          // no dim overlay to clear
           zoomStateRef.current.active = false
           zoomStateRef.current.frameIndex = -1
           animateCameraTo(0, 0, 1)
@@ -608,18 +766,18 @@ export default function WallGallery({ landscapePhotos, portraitPhotos, backgroun
   }
 
   return (
-    <div style={{position: 'relative', width: '100%'}}>
+    <div style={{ position: 'relative', width: '100%' }}>
       <div
         ref={containerRef}
         style={{
           position: 'relative',
-          width: '100%',
-          height: 'min(72vh, 900px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#ffffff',
-          overflow: 'hidden'
+          display: 'block',
+          margin: '0 auto',
+          width: drawDims?.w ?? wallDims?.w ?? undefined,
+          height: drawDims?.h ?? wallDims?.h ?? undefined,
+          maxWidth: '100%',
+          backgroundColor: 'transparent',
+          overflow: 'visible'
         }}
       >
         {/* Interactive overlay for dragging/resizing frames */}
@@ -777,7 +935,8 @@ function createFrame(
   borderPx: number,
   shadowOpacity: number,
   renderer: THREE.WebGLRenderer,
-  wallTone: THREE.Color
+  wallTone: THREE.Color,
+  onDimensionsLoaded?: (width: number, height: number) => void
 ): { group: THREE.Group; imgMesh: THREE.Mesh } {
   const { x, y, w, h, src, id } = config
   const group = new THREE.Group()
@@ -808,6 +967,11 @@ function createFrame(
   textureLoader.load(src, (texture) => {
     texture.colorSpace = THREE.SRGBColorSpace
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+
+    // store image dimensions via callback
+    if (onDimensionsLoaded) {
+      onDimensionsLoaded(texture.image.width, texture.image.height)
+    }
 
     // implement "object-fit: cover" behavior
     const imgAspect = texture.image.width / texture.image.height
@@ -841,21 +1005,7 @@ function createFrame(
   return { group, imgMesh: img }
 }
 
-function rebuildFrames(config: WallConfig) {
-  const renderer = rendererRef.current!
-  const scene = sceneRef.current!
-  // remove old groups
-  frameGroupsRef.current.forEach(g => scene.remove(g))
-  frameGroupsRef.current = []
-  frameMeshesRef.current = []
-  // add new groups
-  config.frames.forEach(frameConfig => {
-    const { group, imgMesh } = createFrame(frameConfig, config.frameStyle.border, config.frameStyle.shadowOpacity, renderer, new THREE.Color(1,1,1))
-    scene.add(group)
-    frameGroupsRef.current.push(group)
-    frameMeshesRef.current.push(imgMesh)
-  })
-}
+// Note: This rebuildFrames is not used - the one inside useEffect is used instead
 
 // --- Helpers ---
 function loadImageSize(src: string): Promise<PhotoSize> {

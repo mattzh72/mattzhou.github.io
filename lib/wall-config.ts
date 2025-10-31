@@ -18,6 +18,7 @@ export interface FrameConfig {
   w: number
   h: number
   src: string
+  label?: string
 }
 
 // museum-style arrangement: 3 frames in a row with classic gallery spacing
@@ -58,7 +59,7 @@ export function createWallConfig(
         id: 'frame-1',
         x: -740,
         y: 316,
-        w: 65,
+        w: 61,
         h: 92,
         src: portrait[1]?.src || '/photos/placeholder.jpg'
       },
@@ -72,10 +73,10 @@ export function createWallConfig(
       },
       {
         id: 'frame-3',
-        x: 189,
-        y: -57,
-        w: 175,
-        h: 262,
+        x: 185,
+        y: -61,
+        w: 178,
+        h: 266,
         src: portrait[3]?.src || '/photos/placeholder.jpg'
       },
       {
@@ -100,67 +101,75 @@ export function createWallConfig(
     bakedFrames = [
       {
         id: 'frame-0',
-        x: -370,
-        y: -106,
-        w: 50,
-        h: 53,
-        src: portrait[0]?.src || '/photos/placeholder.jpg'
+        x: -754,
+        y: -229,
+        w: 122,
+        h: 160,
+        src: portrait[0]?.src || '/photos/placeholder.jpg',
+        label: 'David Zwirner Gallery in New York City'
       },
       {
         id: 'frame-1',
-        x: 91,
-        y: -115,
-        w: 56,
-        h: 63,
-        src: portrait[1]?.src || '/photos/placeholder.jpg'
+        x: 195,
+        y: -227,
+        w: 84,
+        h: 126,
+        src: portrait[1]?.src || '/photos/placeholder.jpg',
+        label: 'Gagosian Gallery'
       },
       {
         id: 'frame-2',
-        x: -415,
-        y: 117,
+        x: -832,
+        y: 254,
         w: 114,
         h: 171,
-        src: portrait[2]?.src || '/photos/placeholder.jpg'
+        src: portrait[2]?.src || '/photos/placeholder.jpg',
+        label: 'White Cube London'
       },
       {
         id: 'frame-3',
-        x: 170,
-        y: -32,
-        w: 183,
-        h: 274,
-        src: portrait[3]?.src || '/photos/placeholder.jpg'
+        x: 339,
+        y: -70,
+        w: 371,
+        h: 553,
+        src: portrait[3]?.src || '/photos/placeholder.jpg',
+        label: 'Hauser & Wirth'
       },
       {
         id: 'frame-4',
-        x: 354,
-        y: -155,
-        w: 55,
-        h: 82,
-        src: portrait[4]?.src || '/photos/placeholder.jpg'
+        x: 702,
+        y: -308,
+        w: 124,
+        h: 184,
+        src: portrait[4]?.src || '/photos/placeholder.jpg',
+        label: 'Pace Gallery'
       },
       {
         id: 'frame-5',
-        x: -138,
-        y: 101,
-        w: 82,
-        h: 55,
-        src: landscape[0]?.src || '/photos/placeholder.jpg'
+        x: -280,
+        y: 198,
+        w: 174,
+        h: 117,
+        src: landscape[0]?.src || '/photos/placeholder.jpg',
+        label: 'Sadie Coles HQ'
       },
       {
         id: 'frame-6',
-        x: -269,
-        y: -181,
-        w: 267,
-        h: 177,
-        src: landscape[1]?.src || '/photos/placeholder.jpg'
+        x: -542,
+        y: -363,
+        w: 535,
+        h: 355,
+        src: landscape[1]?.src || '/photos/placeholder.jpg',
+        label: 'Lisson Gallery'
       },
       {
         id: 'frame-7',
-        x: 275,
-        y: -122,
-        w: 60,
-        h: 50,
-        src: landscape[2]?.src || '/photos/placeholder.jpg'
+        x: 560,
+        y: -248,
+        w: 119,
+        h: 80,
+        src: landscape[2]?.src || '/photos/placeholder.jpg',
+        label: 'Marian Goodman Gallery'
       }
     ]
   } else {

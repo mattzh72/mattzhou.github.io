@@ -21,36 +21,45 @@ export default async function Museum() {
     <div className="min-h-screen bg-white">
       <div className="w-full max-w-2xl mx-auto px-6 pt-40">
         <Sidebar />
-        <div className="mt-8 text-sm text-neutral-500 space-y-1">
+        <div className="mt-12 sm:mt-14 lg:mt-16 mb-8 sm:mb-10 lg:mb-12 text-sm text-neutral-500 space-y-1">
           <p>Tap photos to <span className="text-neutral-900">zoom</span></p>
           <p>Tap wall to <span className="text-neutral-900">cycle</span></p>
         </div>
       </div>
       <div className="w-full max-w-6xl mx-auto px-6 pt-8 lg:pt-16 pb-12">
-        <section className="w-full space-y-12">
-          <WallGallery
-            landscapePhotos={landscape}
-            portraitPhotos={portrait}
-            backgroundUrl="/background.jpg"
-            showPhotos={true}
-            canvasId="background"
-          />
-          <WallGallery
-            landscapePhotos={landscape}
-            portraitPhotos={portrait}
-            backgroundUrl="/art_gallery_ontario.jpg"
-            showPhotos={true}
-            canvasId="art_gallery_ontario"
-            frameLayout="art-gallery-ontario"
-          />
-          <WallGallery
-            landscapePhotos={landscape}
-            portraitPhotos={portrait}
-            backgroundUrl="/tate_modern.webp"
-            showPhotos={true}
-            canvasId="tate_modern"
-            frameLayout="tate-modern"
-          />
+        <section className="w-full space-y-8">
+          <div>
+            <WallGallery
+              landscapePhotos={landscape}
+              portraitPhotos={portrait}
+              backgroundUrl="/background.jpg"
+              showPhotos={true}
+              canvasId="background"
+            />
+            <p className="my-6 sm:my-8 text-xs text-neutral-600 italic text-center">David Zwirner Gallery, NYC</p>
+          </div>
+          <div>
+            <WallGallery
+              landscapePhotos={landscape}
+              portraitPhotos={portrait}
+              backgroundUrl="/art_gallery_ontario.jpg"
+              showPhotos={true}
+              canvasId="art_gallery_ontario"
+              frameLayout="art-gallery-ontario"
+            />
+            <p className="my-6 sm:my-8 text-xs text-neutral-600 italic text-center">Art Gallery of Ontario, Toronto</p>
+          </div>
+          <div>
+            <WallGallery
+              landscapePhotos={landscape}
+              portraitPhotos={portrait}
+              backgroundUrl="/tate_modern.jpeg"
+              showPhotos={true}
+              canvasId="tate_modern"
+              frameLayout="tate-modern"
+            />
+            <p className="my-6 sm:my-8 text-xs text-neutral-600 italic text-center">Tate Modern, London</p>
+          </div>
         </section>
       </div>
       <div className="w-full max-w-2xl mx-auto px-6 pb-12">
