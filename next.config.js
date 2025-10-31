@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'export',
+  basePath: '/personal',
   images: {
-    formats: ['image/avif', 'image/webp'],
+    unoptimized: true,
   },
 }
 
