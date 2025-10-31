@@ -14,9 +14,10 @@ export default function Home() {
               Previously, I was the second hire at Letta, a research company focused on memory AI agents. I was involved in many parts of the stack:
             </p>
             <ul className="text-base leading-relaxed mb-4 ml-6 space-y-1">
-              <li>• Rewriting the OSS to support <a href="https://www.letta.com/case-studies/bilt" className="text-[#002FA7] hover:opacity-80" target="_blank" rel="noopener noreferrer">a million agents</a></li>
-              <li>• Designing agent <a href="https://www.letta.com/blog/letta-filesystem" className="text-[#002FA7] hover:opacity-80" target="_blank" rel="noopener noreferrer">tooling</a></li>
+              <li>• Building a stateful agent cloud to support <a href="https://www.letta.com/case-studies/bilt" className="text-[#002FA7] hover:opacity-80" target="_blank" rel="noopener noreferrer">a million agents</a></li>
+              <li>• Giving agents the ability to search over large <a href="https://www.letta.com/blog/letta-filesystem" className="text-[#002FA7] hover:opacity-80" target="_blank" rel="noopener noreferrer">file systems</a></li>
               <li>• <a href="https://www.letta.com/blog/letta-evals" className="text-[#002FA7] hover:opacity-80" target="_blank" rel="noopener noreferrer">Evals</a>, synthetic data, and RL environments</li>
+              <li>• Designing benchmarks like <a href="https://www.letta.com/blog/context-bench" className="text-[#002FA7] hover:opacity-80" target="_blank" rel="noopener noreferrer">Context-Bench</a></li>
             </ul>
             <p className="text-base leading-relaxed mb-4">
               Before that, I was an engineer at Databricks, working on systems and deployment. During this time, I also was working on{' '}
